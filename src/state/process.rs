@@ -479,7 +479,7 @@ where
             epoch_id:     self.epoch_id,
         })?;
 
-        info!(
+        debug!(
             "Overlord: state trigger SMR epoch ID {}, round {}, type {:?}",
             self.epoch_id,
             self.round,
@@ -577,7 +577,7 @@ where
             None
         };
 
-        info!(
+        debug!(
             "Overlord: state trigger SMR proposal epoch ID {}, round {}",
             self.epoch_id, self.round
         );
@@ -597,7 +597,7 @@ where
             epoch_id:     self.epoch_id,
         })?;
 
-        info!(
+        debug!(
             "Overlord: state trigger SMR epoch ID {}, round {}, type {:?}",
             self.epoch_id,
             self.round,
@@ -812,7 +812,7 @@ where
         }
 
         let mut epoch_hash = epoch_hash.unwrap();
-        info!(
+        debug!(
             "Overlord: state counting a epoch hash that votes above threshold, epoch ID {}, round {}",
             self.epoch_id, self.round
         );
@@ -838,7 +838,7 @@ where
             return Ok(());
         }
 
-        info!(
+        debug!(
             "Overlord: state trigger SMR {:?} QC epoch ID {}, round {}",
             vote_type, self.epoch_id, self.round
         );
@@ -851,7 +851,7 @@ where
         })?;
 
         // This is for test
-        info!(
+        debug!(
             "Overlord: state trigger SMR epoch ID {}, round {}, type {:?}",
             self.epoch_id, self.round, vote_type,
         );
@@ -953,7 +953,7 @@ where
             return Ok(());
         }
 
-        info!(
+        debug!(
             "Overlord: state trigger SMR {:?} QC epoch ID {}, round {}",
             qc_type, self.epoch_id, self.round
         );
@@ -967,7 +967,7 @@ where
         })?;
 
         // This is for test
-        info!(
+        debug!(
             "Overlord: state trigger SMR epoch ID {}, round {}, type {:?}",
             self.epoch_id, self.round, qc_type,
         );
@@ -1006,7 +1006,7 @@ where
                     epoch_id:     self.epoch_id,
                 })?;
 
-                info!(
+                debug!(
                     "Overlord: state trigger SMR epoch ID {}, round {}, type {:?}",
                     self.epoch_id, self.round, qc.vote_type,
                 );
@@ -1030,7 +1030,7 @@ where
                 }
             }
 
-            info!(
+            debug!(
                 "Overlord: state trigger SMR {:?} QC epoch ID {}, round {}",
                 vote_type, self.epoch_id, self.round
             );
@@ -1044,7 +1044,7 @@ where
             })?;
 
             // This is for test
-            info!(
+            debug!(
                 "Overlord: state trigger SMR epoch ID {}, round {}, type {:?}",
                 self.epoch_id, self.round, vote_type,
             );
@@ -1061,7 +1061,7 @@ where
             .get_vote_map(self.epoch_id, self.round, vote_type.clone())?;
         let threshold = self.authority.get_vote_weight_sum(true)? * 2;
 
-        info!(
+        debug!(
             "Overlord: state round {}, {:?} vote pool length {}",
             self.round, vote_type, len
         );
