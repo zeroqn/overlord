@@ -63,6 +63,9 @@ pub enum ConsensusError {
     #[display(fmt = "Crypto error {}", _0)]
     CryptoErr(String),
     ///
+    #[display(fmt = "Check epoch error {}", _0)]
+    CheckEpochErr(String),
+    ///
     #[display(fmt = "Aggregated signature error {}", _0)]
     AggregatedSignatureErr(String),
     /// Other error.
