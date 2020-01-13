@@ -617,7 +617,7 @@ where
             "Overlord: state receive {:?} vote event epoch ID {}, round {}",
             vote_type.clone(),
             self.epoch_id,
-            self.round
+            self.round,
         );
 
         let tmp_type: String = vote_type.to_string();
@@ -1065,6 +1065,8 @@ where
         );
 
         for (hash, set) in vote_map.iter() {
+            let addresses: Vec<String> = set.iter().map(|add| hex::encode(add)).collect();
+            info!("epoch hash {:?} set {:?}", hex::encode(hash), addresses);
             let mut acc = 0u8;
             for addr in set.iter() {
                 acc += self.authority.get_vote_weight(addr)?;
