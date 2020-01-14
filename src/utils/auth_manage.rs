@@ -186,8 +186,8 @@ impl EpochAuthorityManage {
 
     /// Get the proposer address by a given seed.
     fn get_proposer(&self, seed: u64) -> ConsensusResult<Address> {
-        let index = seed as usize % self.address.len();
-        // let index = get_proposer_index(seed, &self.propose_weights, self.propose_weight_sum);
+        // let index = seed as usize % self.address.len();
+        let index = get_proposer_index(seed, &self.propose_weights, self.propose_weight_sum);
         if let Some(addr) = self.address.get(index) {
             return Ok(addr.to_owned());
         }
