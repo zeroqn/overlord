@@ -935,6 +935,7 @@ where
             Some(json!({ "qc type": qc_type.to_string() })),
         );
 
+        log::info!("start verify_aggregated_signature");
         // Verify aggregate signature and check the sum of the voting weights corresponding to the
         // hash exceeds the threshold.
         self.verify_aggregated_signature(
@@ -943,6 +944,7 @@ where
             epoch_id,
             qc_type.clone(),
         )?;
+        log::info!("end verify_aggregated_signature");
 
         // Check if the epoch hash has been verified.
         let qc_hash = aggregated_vote.epoch_hash.clone();
