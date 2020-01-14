@@ -179,7 +179,7 @@ impl StateMachine {
     }
 
     /// Handle a prevote quorum certificate trigger. Only if self step is prevote, the prevote QC is
-    /// valid.  
+    /// valid.
     /// The prevote round must be some. If the vote round is higher than self lock round, update
     /// PoLC. Fianlly throw precommit vote event.
     fn handle_prevote(
@@ -348,7 +348,7 @@ impl StateMachine {
     /// Goto the given step.
     #[inline]
     fn goto_step(&mut self, step: Step) {
-        debug!("Overlord: SMR goto step {:?}", step);
+        info!("Overlord: SMR goto step {:?}", step);
         trace::start_step(step.clone().to_string(), self.round, self.epoch_id);
         self.step = step;
     }
