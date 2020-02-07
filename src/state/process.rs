@@ -1535,7 +1535,7 @@ where
                 error!("Overlord: state check block failed: {:?}", e);
             }
 
-            log::error!("spwan check_current_block entry");
+            log::error!("spwan check_current_block done");
         });
     }
 
