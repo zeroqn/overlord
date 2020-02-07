@@ -4,6 +4,7 @@ use bytes::Bytes;
 use futures::channel::mpsc::unbounded;
 use futures::stream::StreamExt;
 use rand::random;
+use tokio::runtime::Runtime;
 
 use crate::smr::smr_types::{SMREvent, Step};
 use crate::smr::{Event, SMR};
@@ -26,10 +27,12 @@ struct WalTestCase {
 }
 
 async fn test_process(case: WalTestCase) {
+    let runtime = Arc::new(Runtime::new().unwrap());
+
     let (overlord_tx, mut overlord_rx) = unbounded();
     let (raw_tx, raw_rx) = unbounded();
     let (mock_tx, mock_rx) = unbounded();
-    let (mut smr, mut smr_event, _) = SMR::new();
+    let (mut smr, mut smr_event, _) = SMR::new(Arc::clone(&runtime));
     let handler = smr.take_smr();
     smr.run();
 
@@ -42,6 +45,7 @@ async fn test_process(case: WalTestCase) {
         Arc::new(engine),
         MockCrypto,
         Arc::new(MockWal::new(case.input.clone())),
+        runtime,
     );
 
     tokio::spawn(async move {

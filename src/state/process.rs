@@ -15,6 +15,7 @@ use log::{debug, error, info, warn};
 use moodyblues_sdk::trace;
 use rlp::encode;
 use serde_json::json;
+use tokio::runtime::Runtime;
 
 use crate::error::ConsensusError;
 use crate::smr::smr_types::{SMREvent, SMRTrigger, Step, TriggerSource, TriggerType};
@@ -66,6 +67,7 @@ pub struct State<T: Codec, F: Consensus<T>, C: Crypto, W: Wal> {
     function: Arc<F>,
     wal:      Arc<W>,
     util:     C,
+    runtime:  Arc<Runtime>,
 }
 
 impl<T, F, C, W> State<T, F, C, W>
@@ -84,31 +86,33 @@ where
         consensus: Arc<F>,
         crypto: C,
         wal_engine: Arc<W>,
+        runtime: Arc<Runtime>,
     ) -> (Self, UnboundedReceiver<VerifyResp>) {
         let (tx, rx) = unbounded();
         let mut auth = AuthorityManage::new();
         auth.update(&mut authority_list, false);
 
         let state = State {
-            height:              INIT_HEIGHT,
-            round:               INIT_ROUND,
-            state_machine:       smr,
-            address:             addr,
-            proposals:           ProposalCollector::new(),
-            votes:               VoteCollector::new(),
-            authority:           auth,
-            hash_with_block:     HashMap::new(),
+            height: INIT_HEIGHT,
+            round: INIT_ROUND,
+            state_machine: smr,
+            address: addr,
+            proposals: ProposalCollector::new(),
+            votes: VoteCollector::new(),
+            authority: auth,
+            hash_with_block: HashMap::new(),
             is_full_transcation: HashMap::new(),
-            is_leader:           false,
-            leader_address:      Address::default(),
-            last_commit_qc:      None,
-            height_start:        Instant::now(),
-            block_interval:      interval,
+            is_leader: false,
+            leader_address: Address::default(),
+            last_commit_qc: None,
+            height_start: Instant::now(),
+            block_interval: interval,
 
-            resp_tx:  tx,
+            resp_tx: tx,
             function: consensus,
-            util:     crypto,
-            wal:      wal_engine,
+            util: crypto,
+            wal: wal_engine,
+            runtime,
         };
 
         (state, rx)
@@ -1513,7 +1517,7 @@ where
             })),
         );
 
-        tokio::spawn(async move {
+        self.runtime.spawn(async move {
             if let Err(e) =
                 check_current_block(ctx, function, height, hash.clone(), block, resp_tx).await
             {

@@ -12,6 +12,7 @@ use hasher::{Hasher, HasherKeccak};
 use lazy_static::lazy_static;
 use rand::random;
 use serde::{Deserialize, Serialize};
+use tokio::runtime::Runtime;
 
 use overlord::types::{Commit, Hash, Node, OverlordMsg, Status};
 use overlord::{Codec, Consensus, Crypto, DurationConfig, Overlord, OverlordHandler, Wal};
@@ -243,6 +244,8 @@ impl Speaker {
         hearing: Receiver<OverlordMsg<Speech>>,
         consensus_speech: Arc<Mutex<HashMap<u64, Bytes>>>,
     ) -> Self {
+        let runtime = Arc::new(Runtime::new().unwrap());
+
         let crypto = MockCrypto::new(name.clone());
         let brain = Arc::new(Brain::new(
             speaker_list.clone(),
@@ -250,7 +253,7 @@ impl Speaker {
             hearing,
             consensus_speech,
         ));
-        let overlord = Overlord::new(name, Arc::clone(&brain), crypto, Arc::new(MockWal));
+        let overlord = Overlord::new(name, Arc::clone(&brain), crypto, Arc::new(MockWal), runtime);
         let overlord_handler = overlord.get_handler();
 
         overlord_handler

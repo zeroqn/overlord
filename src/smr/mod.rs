@@ -7,11 +7,13 @@ mod state_machine;
 mod tests;
 
 use std::pin::Pin;
+use std::sync::Arc;
 use std::task::{Context, Poll};
 
 use futures::channel::mpsc::{unbounded, UnboundedReceiver, UnboundedSender};
 use futures::stream::{FusedStream, Stream, StreamExt};
 use log::error;
+use tokio::runtime::Runtime;
 
 use crate::smr::smr_types::{SMREvent, SMRStatus, SMRTrigger, TriggerSource, TriggerType};
 use crate::smr::state_machine::StateMachine;
@@ -23,10 +25,11 @@ use crate::{error::ConsensusError, ConsensusResult};
 pub struct SMR {
     smr_handler:   Option<SMRHandler>,
     state_machine: StateMachine,
+    runtime:       Arc<Runtime>,
 }
 
 impl SMR {
-    pub fn new() -> (Self, Event, Event) {
+    pub fn new(runtime: Arc<Runtime>) -> (Self, Event, Event) {
         let (tx, rx) = unbounded();
         let smr = SMRHandler::new(tx);
         let (state_machine, evt_1, evt_2) = StateMachine::new(rx);
@@ -34,6 +37,7 @@ impl SMR {
         let provider = SMR {
             smr_handler: Some(smr),
             state_machine,
+            runtime,
         };
 
         (provider, evt_1, evt_2)
@@ -47,7 +51,9 @@ impl SMR {
 
     /// Run SMR module in tokio environment.
     pub fn run(mut self) {
-        tokio::spawn(async move {
+        let runtime = Arc::clone(&self.runtime);
+
+        runtime.spawn(async move {
             loop {
                 let res = self.state_machine.next().await;
                 if let Some(err) = res {

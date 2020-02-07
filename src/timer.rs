@@ -1,3 +1,4 @@
+use std::sync::Arc;
 use std::task::{Context, Poll};
 use std::time::Duration;
 use std::{future::Future, pin::Pin};
@@ -8,6 +9,7 @@ use futures::stream::{Stream, StreamExt};
 use futures::{FutureExt, SinkExt};
 use futures_timer::Delay;
 use log::{debug, error, info};
+use tokio::runtime::Runtime;
 
 use crate::smr::smr_types::{SMREvent, SMRTrigger, TriggerSource, TriggerType};
 use crate::smr::{Event, SMRHandler};
@@ -26,6 +28,7 @@ pub struct Timer {
     state_machine: SMRHandler,
     height:        u64,
     round:         u64,
+    runtime:       Arc<Runtime>,
 }
 
 ///
@@ -86,6 +89,7 @@ impl Timer {
         state_machine: SMRHandler,
         interval: u64,
         config: Option<DurationConfig>,
+        runtime: Arc<Runtime>,
     ) -> Self {
         let (tx, rx) = unbounded();
         let mut timer_config = TimerConfig::new(interval);
@@ -101,11 +105,14 @@ impl Timer {
             notify: rx,
             event,
             state_machine,
+            runtime,
         }
     }
 
     pub fn run(mut self) {
-        tokio::spawn(async move {
+        let runtime = Arc::clone(&self.runtime);
+
+        runtime.spawn(async move {
             loop {
                 if let Some(err) = self.next().await {
                     error!("Overlord: timer error {:?}", err);
@@ -153,9 +160,14 @@ impl Timer {
 
         info!("Overlord: timer set {:?} timer", event);
 
-        let smr_timer = TimeoutInfo::new(interval, event, self.sender.clone());
+        let smr_timer = TimeoutInfo::new(
+            interval,
+            event,
+            self.sender.clone(),
+            Arc::clone(&self.runtime),
+        );
 
-        tokio::spawn(async move {
+        self.runtime.spawn(async move {
             smr_timer.await;
         });
 
@@ -214,6 +226,7 @@ struct TimeoutInfo {
     timeout: Delay,
     info:    SMREvent,
     sender:  UnboundedSender<SMREvent>,
+    runtime: Arc<Runtime>,
 }
 
 impl Future for TimeoutInfo {
@@ -226,7 +239,7 @@ impl Future for TimeoutInfo {
         match self.timeout.poll_unpin(cx) {
             Poll::Pending => Poll::Pending,
             Poll::Ready(_) => {
-                tokio::spawn(async move {
+                self.runtime.spawn(async move {
                     let _ = tx.send(msg).await;
                 });
                 Poll::Ready(())
@@ -236,25 +249,36 @@ impl Future for TimeoutInfo {
 }
 
 impl TimeoutInfo {
-    fn new(interval: Duration, event: SMREvent, tx: UnboundedSender<SMREvent>) -> Self {
+    fn new(
+        interval: Duration,
+        event: SMREvent,
+        tx: UnboundedSender<SMREvent>,
+        runtime: Arc<Runtime>,
+    ) -> Self {
         TimeoutInfo {
             timeout: Delay::new(interval),
-            info:    event,
-            sender:  tx,
+            info: event,
+            sender: tx,
+            runtime,
         }
     }
 }
 
 #[cfg(test)]
 mod test {
+    use std::sync::Arc;
+
     use futures::channel::mpsc::unbounded;
     use futures::stream::StreamExt;
+    use tokio::runtime::Runtime;
 
     use crate::smr::smr_types::{SMREvent, SMRTrigger, TriggerSource, TriggerType};
     use crate::smr::{Event, SMRHandler};
     use crate::{timer::Timer, types::Hash};
 
     async fn test_timer_trigger(input: SMREvent, output: SMRTrigger) {
+        let runtime = Arc::new(Runtime::new().unwrap());
+
         let (trigger_tx, mut trigger_rx) = unbounded();
         let (event_tx, event_rx) = unbounded();
         let mut timer = Timer::new(
@@ -262,10 +286,11 @@ mod test {
             SMRHandler::new(trigger_tx),
             3000,
             None,
+            Arc::clone(&runtime),
         );
         event_tx.unbounded_send(input).unwrap();
 
-        tokio::spawn(async move {
+        runtime.spawn(async move {
             loop {
                 match timer.next().await {
                     None => break,
@@ -334,6 +359,8 @@ mod test {
 
     #[tokio::test(threaded_scheduler)]
     async fn test_order() {
+        let runtime = Arc::new(Runtime::new().unwrap());
+
         let (trigger_tx, mut trigger_rx) = unbounded();
         let (event_tx, event_rx) = unbounded();
         let mut timer = Timer::new(
@@ -341,6 +368,7 @@ mod test {
             SMRHandler::new(trigger_tx),
             3000,
             None,
+            Arc::clone(&runtime),
         );
 
         let new_round_event = SMREvent::NewRoundInfo {
@@ -366,7 +394,7 @@ mod test {
             lock_round: None,
         };
 
-        tokio::spawn(async move {
+        runtime.spawn(async move {
             loop {
                 match timer.next().await {
                     None => break,

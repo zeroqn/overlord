@@ -3,6 +3,7 @@ use std::sync::Arc;
 use creep::Context;
 use futures::channel::mpsc::{unbounded, UnboundedReceiver, UnboundedSender};
 use parking_lot::RwLock;
+use tokio::runtime::Runtime;
 
 use crate::error::ConsensusError;
 use crate::state::process::State;
@@ -21,6 +22,7 @@ pub struct Overlord<T: Codec, F: Consensus<T>, C: Crypto, W: Wal> {
     consensus: Pile<Arc<F>>,
     crypto:    Pile<C>,
     wal:       Pile<Arc<W>>,
+    runtime:   Arc<Runtime>,
 }
 
 impl<T, F, C, W> Overlord<T, F, C, W>
@@ -31,15 +33,22 @@ where
     W: Wal + 'static,
 {
     /// Create a new overlord and return an overlord instance with an unbounded receiver.
-    pub fn new(address: Address, consensus: Arc<F>, crypto: C, wal: Arc<W>) -> Self {
+    pub fn new(
+        address: Address,
+        consensus: Arc<F>,
+        crypto: C,
+        wal: Arc<W>,
+        runtime: Arc<Runtime>,
+    ) -> Self {
         let (tx, rx) = unbounded();
         Overlord {
-            sender:    RwLock::new(Some(tx)),
-            state_rx:  RwLock::new(Some(rx)),
-            address:   RwLock::new(Some(address)),
+            sender: RwLock::new(Some(tx)),
+            state_rx: RwLock::new(Some(rx)),
+            address: RwLock::new(Some(address)),
             consensus: RwLock::new(Some(consensus)),
-            crypto:    RwLock::new(Some(crypto)),
-            wal:       RwLock::new(Some(wal)),
+            crypto: RwLock::new(Some(crypto)),
+            wal: RwLock::new(Some(wal)),
+            runtime,
         }
     }
 
@@ -58,9 +67,15 @@ where
         authority_list: Vec<Node>,
         timer_config: Option<DurationConfig>,
     ) -> ConsensusResult<()> {
-        let (mut smr_provider, evt_1, evt_2) = SMR::new();
+        let (mut smr_provider, evt_1, evt_2) = SMR::new(Arc::clone(&self.runtime));
         let smr_handler = smr_provider.take_smr();
-        let timer = Timer::new(evt_2, smr_handler.clone(), interval, timer_config);
+        let timer = Timer::new(
+            evt_2,
+            smr_handler.clone(),
+            interval,
+            timer_config,
+            Arc::clone(&self.runtime),
+        );
 
         let (rx, mut state, resp) = {
             let mut state_rx = self.state_rx.write();
@@ -79,6 +94,7 @@ where
                 consensus.take().unwrap(),
                 crypto.take().unwrap(),
                 wal.take().unwrap(),
+                Arc::clone(&self.runtime),
             );
 
             // assert!(sender.is_none());
