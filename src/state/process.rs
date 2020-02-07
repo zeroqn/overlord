@@ -290,7 +290,7 @@ where
     }
 
     fn handle_resp(&mut self, msg: Option<VerifyResp>) -> ConsensusResult<()> {
-        log::error!("check_current_block handle_resp")
+        log::error!("check_current_block handle_resp");
         let resp = msg.ok_or_else(|| ConsensusError::Other("Event sender dropped".to_string()))?;
         if resp.height != self.height {
             return Ok(());
