@@ -290,6 +290,7 @@ where
     }
 
     fn handle_resp(&mut self, msg: Option<VerifyResp>) -> ConsensusResult<()> {
+        log::error!("check_current_block handle_resp")
         let resp = msg.ok_or_else(|| ConsensusError::Other("Event sender dropped".to_string()))?;
         if resp.height != self.height {
             return Ok(());
@@ -1517,7 +1518,9 @@ where
             })),
         );
 
+        log::error!("spwan check_current_block");
         self.runtime.spawn(async move {
+            log::error!("spwan check_current_block entry");
             if let Err(e) =
                 check_current_block(ctx, function, height, hash.clone(), block, resp_tx).await
             {
@@ -1531,6 +1534,8 @@ where
 
                 error!("Overlord: state check block failed: {:?}", e);
             }
+
+            log::error!("spwan check_current_block entry");
         });
     }
 
