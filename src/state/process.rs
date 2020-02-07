@@ -1520,7 +1520,7 @@ where
 
         log::error!("spwan check_current_block");
         self.runtime.spawn(async move {
-            log::error!("spwan check_current_block entry");
+            let time = std::time::Instant::now();
             if let Err(e) =
                 check_current_block(ctx, function, height, hash.clone(), block, resp_tx).await
             {
@@ -1535,7 +1535,7 @@ where
                 error!("Overlord: state check block failed: {:?}", e);
             }
 
-            log::error!("spwan check_current_block done");
+            log::error!("spwan check_current_block done {:?}", time.elapsed());
         });
     }
 
