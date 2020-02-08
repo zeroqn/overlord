@@ -156,6 +156,8 @@ impl StateMachine {
         status: SMRStatus,
         source: TriggerSource,
     ) -> ConsensusResult<()> {
+        log::error!("handle_new_height source {:?}", source);
+        log::error!("handle_new_height self {:?}", self);
         info!("Overlord: SMR triggered by new height {}", status.height);
 
         let height = status.height;
@@ -269,7 +271,7 @@ impl StateMachine {
     }
 
     /// Handle a prevote quorum certificate trigger. Only if self step is prevote, the prevote QC is
-    /// valid.  
+    /// valid.
     /// The prevote round must be some. If the vote round is higher than self lock round, update
     /// PoLC. Fianlly throw precommit vote event.
     fn handle_prevote(
