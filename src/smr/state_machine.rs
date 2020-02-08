@@ -156,7 +156,7 @@ impl StateMachine {
         status: SMRStatus,
         source: TriggerSource,
     ) -> ConsensusResult<()> {
-        log::error!("handle_new_height source {:?}", source);
+        log::error!("handle_new_height source {:?} state {:?}", source, status);
         log::error!("handle_new_height self {:?}", self);
         info!("Overlord: SMR triggered by new height {}", status.height);
 
