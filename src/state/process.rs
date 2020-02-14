@@ -829,6 +829,7 @@ where
     }
 
     async fn handle_brake(&mut self, round: u64) -> ConsensusResult<()> {
+        log::error!("handle_brake round {:?}", round);
         if round != self.round {
             return Err(ConsensusError::CorrectnessErr(format!(
                 "SMR round {}, state round {}",
@@ -842,10 +843,12 @@ where
             from:   self.update_from_where.clone(),
         };
 
+        log::error!("handle_brake choke {:?}", choke);
         let signature = self
             .util
             .sign(self.util.hash(Bytes::from(encode(&choke.to_hash()))))
             .map_err(|err| ConsensusError::CryptoErr(format!("sign choke error {:?}", err)))?;
+        log::error!("handle_brake signature {:?}", choke);
         let signed_choke = SignedChoke {
             signature,
             choke,
