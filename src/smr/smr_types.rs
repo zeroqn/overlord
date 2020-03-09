@@ -8,11 +8,6 @@ use crate::DurationConfig;
 /// SMR steps. The default step is commit step because SMR needs rich status to start a new block.
 #[derive(Serialize, Deserialize, Clone, Debug, Display, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Step {
-    /// Brake step, in this step:
-    /// wait for other nodes.
-    #[display(fmt = "Brake step")]
-    Brake,
-
     /// Prepose step, in this step:
     /// Firstly, each node calculate the new proposer, then:
     /// Leader:
@@ -35,6 +30,11 @@ pub enum Step {
     /// Then goto precommit step.
     #[display(fmt = "Prevote step")]
     Prevote,
+
+    /// Brake step, in this step:
+    /// wait for other nodes.
+    #[display(fmt = "Brake step")]
+    Brake,
 
     /// Precommit step, in this step:
     /// Leader:
@@ -65,10 +65,10 @@ impl Default for Step {
 impl Into<u8> for Step {
     fn into(self) -> u8 {
         match self {
-            Step::Brake => 0,
-            Step::Propose => 1,
-            Step::Prevote => 2,
-            Step::Precommit => 3,
+            Step::Propose => 0,
+            Step::Prevote => 1,
+            Step::Precommit => 2,
+            Step::Brake => 3,
             Step::Commit => 4,
         }
     }
@@ -77,10 +77,10 @@ impl Into<u8> for Step {
 impl From<u8> for Step {
     fn from(s: u8) -> Self {
         match s {
-            0 => Step::Brake,
-            1 => Step::Propose,
-            2 => Step::Prevote,
-            3 => Step::Precommit,
+            0 => Step::Propose,
+            1 => Step::Prevote,
+            2 => Step::Precommit,
+            3 => Step::Brake,
             4 => Step::Commit,
             _ => panic!("Invalid vote type!"),
         }
