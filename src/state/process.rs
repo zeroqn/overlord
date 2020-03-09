@@ -2,7 +2,7 @@ use std::cmp::Ordering;
 use std::collections::{HashMap, HashSet};
 use std::string::ToString;
 use std::time::{Duration, Instant};
-use std::{ops::BitXor, sync::Arc};
+use std::{ops::BitXor, sync::{Arc, Mutex}};
 
 use bit_vec::BitVec;
 use bytes::Bytes;
@@ -64,7 +64,8 @@ pub struct State<T: Codec, F: Consensus<T>, C: Crypto, W: Wal> {
     height_start:        Instant,
     block_interval:      u64,
     consensus_power:     bool,
-    stopped:             bool,
+    thread_num:          Arc<Mutex<u64>>,
+    test_id:             u64,
 
     resp_tx:  UnboundedSender<VerifyResp>,
     function: Arc<F>,
@@ -88,6 +89,8 @@ where
         consensus: Arc<F>,
         crypto: Arc<C>,
         wal_engine: Arc<W>,
+        thread_num: &Arc<Mutex<u64>>,
+        test_id:  u64,
     ) -> (Self, UnboundedReceiver<VerifyResp>) {
         let (tx, rx) = unbounded();
         let mut auth = AuthorityManage::new();
@@ -110,8 +113,8 @@ where
             height_start:        Instant::now(),
             block_interval:      interval,
             consensus_power:     false,
-            stopped:             false,
-
+            thread_num:          Arc::<Mutex<u64>>::clone(thread_num),
+            test_id,
             resp_tx:  tx,
             function: consensus,
             util:     crypto,
@@ -132,6 +135,10 @@ where
         if let Err(e) = self.start_with_wal().await {
             error!("Overlord: start with wal error {:?}", e);
         }
+        {
+            *self.thread_num.lock().unwrap() += 1;
+            println!("####### thread num: {:?}, {:?} start state in Cycle {:?}", self.thread_num, hex::encode(&self.address), self.test_id);
+        }
 
         loop {
             select! {
@@ -141,10 +148,6 @@ where
                     }
                 }
                 evt = event.next() => {
-                    if self.stopped {
-                        break;
-                    }
-
                     if !self.consensus_power {
                         continue;
                     }
@@ -262,9 +265,7 @@ where
                     round:        Some(self.round),
                     height:       self.height,
                     wal_info:     None,
-                })?;
-                self.stopped = true;
-                Ok(())
+                })
             }
 
             // This is for unit tests.
@@ -382,7 +383,13 @@ where
                 Ok(())
             }
 
-            _ => unreachable!(),
+            SMREvent::Stop => {
+                {
+                    *self.thread_num.lock().unwrap() -= 1;
+                    println!("####### thread num: {:?}, {:?} stop state in Cycle {:?}", self.thread_num, hex::encode(&self.address), self.test_id);
+                }
+                panic!("state stopped!");
+            }
         }
     }
 

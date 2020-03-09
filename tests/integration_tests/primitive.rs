@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::error::Error;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::thread;
 
 use async_trait::async_trait;
@@ -98,7 +98,13 @@ impl Consensus<Block> for Adapter {
             let test_id_updated = *self.records.test_id_updated.lock().unwrap();
             // avoid previous test overwrite commit_records and height_records of the latest test
             if test_id_updated != self.records.test_id {
-                panic!("Previous test try to overwrite records");
+                println!("Previous test try to overwrite records");
+                return Ok(Status {
+                    height:         height + 1,
+                    interval:       Some(self.records.interval),
+                    timer_config:   None,
+                    authority_list: self.records.node_record.clone(),
+                });
             }
         }
 
@@ -228,38 +234,52 @@ impl Participant {
         interval: u64,
         timer_config: Option<DurationConfig>,
         node_list: Vec<Node>,
+        address: Bytes,
+        test_id: u64,
+        thread_num: &Arc<Mutex<u64>>
     ) -> Result<(), Box<dyn Error + Send>> {
         let adapter = Arc::<Adapter>::clone(&self.adapter);
         let handler = self.handler.clone();
         let stopped = Arc::<AtomicBool>::clone(&self.stopped);
+        let thread_num_clone = Arc::<Mutex<u64>>::clone(thread_num);
 
-        thread::spawn(move || loop {
-            if let Ok(msg) = adapter.hearing.recv() {
-                match msg {
-                    OverlordMsg::SignedVote(vote) => {
-                        let _ = handler.send_msg(Context::new(), OverlordMsg::SignedVote(vote));
+        thread::spawn(move || {
+            {
+                *thread_num_clone.lock().unwrap() += 1;
+                println!("####### thread num: {:?}, {:?} start Participant in Cycle {:?}", thread_num_clone, hex::encode(&adapter.address), test_id);
+            }
+            loop {
+                if let Ok(msg) = adapter.hearing.recv() {
+                    match msg {
+                        OverlordMsg::SignedVote(vote) => {
+                            let _ = handler.send_msg(Context::new(), OverlordMsg::SignedVote(vote));
+                        }
+                        OverlordMsg::SignedProposal(proposal) => {
+                            let _ =
+                                handler.send_msg(Context::new(), OverlordMsg::SignedProposal(proposal));
+                        }
+                        OverlordMsg::AggregatedVote(agg_vote) => {
+                            let _ =
+                                handler.send_msg(Context::new(), OverlordMsg::AggregatedVote(agg_vote));
+                        }
+                        OverlordMsg::SignedChoke(choke) => {
+                            let _ = handler.send_msg(Context::new(), OverlordMsg::SignedChoke(choke));
+                        }
+                        _ => {}
                     }
-                    OverlordMsg::SignedProposal(proposal) => {
-                        let _ =
-                            handler.send_msg(Context::new(), OverlordMsg::SignedProposal(proposal));
-                    }
-                    OverlordMsg::AggregatedVote(agg_vote) => {
-                        let _ =
-                            handler.send_msg(Context::new(), OverlordMsg::AggregatedVote(agg_vote));
-                    }
-                    OverlordMsg::SignedChoke(choke) => {
-                        let _ = handler.send_msg(Context::new(), OverlordMsg::SignedChoke(choke));
-                    }
-                    _ => {}
+                }
+                if stopped.load(Ordering::Relaxed) {
+                    break;
                 }
             }
-            if stopped.load(Ordering::Relaxed) {
-                break;
+            {
+                *thread_num_clone.lock().unwrap() -= 1;
+                println!("####### thread num: {:?}, {:?} stop Participant in Cycle {:?}", thread_num_clone, hex::encode(&adapter.address), test_id);
             }
         });
 
         self.overlord
-            .run(interval, node_list, timer_config)
+            .run(interval, node_list, timer_config, address, &thread_num, test_id)
             .await
             .unwrap();
 

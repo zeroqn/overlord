@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use creep::Context;
 use futures::channel::mpsc::{unbounded, UnboundedReceiver, UnboundedSender};
@@ -57,10 +57,13 @@ where
         interval: u64,
         authority_list: Vec<Node>,
         timer_config: Option<DurationConfig>,
+        address: Address,
+        thread_num: &Arc<Mutex<u64>>,
+        test_id: u64,
     ) -> ConsensusResult<()> {
-        let (mut smr_provider, evt_state, evt_timer) = SMR::new();
+        let (mut smr_provider, evt_state, evt_timer) = SMR::new(address.clone(), thread_num, test_id);
         let smr_handler = smr_provider.take_smr();
-        let timer = Timer::new(evt_timer, smr_handler.clone(), interval, timer_config);
+        let timer = Timer::new(evt_timer, smr_handler.clone(), interval, timer_config, address, thread_num, test_id);
 
         let (rx, mut state, resp) = {
             let mut state_rx = self.state_rx.write();
@@ -79,6 +82,8 @@ where
                 consensus.take().unwrap(),
                 crypto.take().unwrap(),
                 wal.take().unwrap(),
+                thread_num,
+                test_id,
             );
 
             // assert!(sender.is_none());

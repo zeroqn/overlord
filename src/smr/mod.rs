@@ -6,6 +6,7 @@ mod state_machine;
 #[cfg(test)]
 mod tests;
 
+use std::sync::{Arc, Mutex};
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
@@ -15,23 +16,30 @@ use log::error;
 
 use crate::smr::smr_types::{SMREvent, SMRStatus, SMRTrigger, TriggerSource, TriggerType};
 use crate::smr::state_machine::StateMachine;
-use crate::types::Hash;
+use crate::types::{Address, Hash};
 use crate::{error::ConsensusError, ConsensusResult};
 
 ///
 #[derive(Debug)]
 pub struct SMR {
+    address: Address,
+    thread_num: Arc<Mutex<u64>>,
+    test_id: u64,
     smr_handler:   Option<SMRHandler>,
     state_machine: StateMachine,
 }
 
 impl SMR {
-    pub fn new() -> (Self, Event, Event) {
+    pub fn new(address: Address, thread_num: &Arc<Mutex<u64>>, test_id: u64) -> (Self, Event, Event) {
         let (tx, rx) = unbounded();
         let smr = SMRHandler::new(tx);
         let (state_machine, evt_state, evt_timer) = StateMachine::new(rx);
+        let thread_num = Arc::<Mutex<u64>>::clone(thread_num);
 
         let provider = SMR {
+            address,
+            thread_num,
+            test_id,
             smr_handler: Some(smr),
             state_machine,
         };
@@ -47,7 +55,15 @@ impl SMR {
 
     /// Run SMR module in tokio environment.
     pub fn run(mut self) {
+        let thread_num = Arc::<Mutex<u64>>::clone(&self.thread_num);
+        let address = self.address.clone();
+        let test_id = self.test_id;
+
         tokio::spawn(async move {
+            {
+                *thread_num.lock().unwrap() += 1;
+                println!("####### thread num: {:?}, {:?} start SMR in Cycle {:?}", thread_num, hex::encode(&address), test_id);
+            }
             loop {
                 let res = self.state_machine.next().await;
                 if let Some(Err(err)) = res {
@@ -55,6 +71,10 @@ impl SMR {
                 } else if res.is_none() {
                     break;
                 }
+            }
+            {
+                *thread_num.lock().unwrap() -= 1;
+                println!("####### thread num: {:?}, {:?} stop SMR in Cycle {:?}", thread_num, hex::encode(&address), test_id);
             }
         });
     }

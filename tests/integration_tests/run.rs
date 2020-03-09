@@ -13,8 +13,11 @@ use overlord::types::{Node, OverlordMsg, Status};
 use super::primitive::{Block, Channel, Participant};
 use super::utils::{get_max_alive_height, timer_config, to_hex, to_hex_strings};
 use super::wal::{Record, RECORD_TMP_FILE};
+use futures_timer::Delay;
 
 pub async fn run_test(records: Record, refresh_height: u64, test_height: u64) {
+    let thread_num = Arc::new(Mutex::new(0));
+
     let interval = records.interval;
     let start_height = get_max_alive_height(&records.height_record, &records.node_record);
     println!("Test start with {:?} nodes，interval of {:?} ms, refresh every {:?} height, begin with {:?} height and terminate after {:?} height",
@@ -32,7 +35,7 @@ pub async fn run_test(records: Record, refresh_height: u64, test_height: u64) {
 
         let height_start = get_max_alive_height(&records.height_record, &alive_nodes);
 
-        let alive_handlers = run_alive_nodes(&records, alive_nodes.clone());
+        let alive_handlers = run_alive_nodes(&records, alive_nodes.clone(), test_id, &thread_num);
         synchronize_height(
             &records,
             alive_nodes.clone(),
@@ -44,7 +47,8 @@ pub async fn run_test(records: Record, refresh_height: u64, test_height: u64) {
         let mut last_max_height = height_end;
         let mut stagnation = 0;
         while height_end - height_start < refresh_height {
-            thread::sleep(Duration::from_millis(interval));
+            // thread::sleep(Duration::from_millis(interval));
+            Delay::new(Duration::from_millis(interval)).await;
             height_end = get_max_alive_height(&records.height_record, &alive_nodes);
             if height_end == last_max_height {
                 stagnation += 1;
@@ -75,7 +79,7 @@ pub async fn run_test(records: Record, refresh_height: u64, test_height: u64) {
     }
 }
 
-fn run_alive_nodes(records: &Record, alive_nodes: Vec<Node>) -> Vec<Arc<Participant>> {
+fn run_alive_nodes(records: &Record, alive_nodes: Vec<Node>, test_id: u64, thread_num: &Arc<Mutex<u64>>) -> Vec<Arc<Participant>> {
     let records = records.as_internal();
     let interval = records.interval;
     let alive_num = alive_nodes.len();
@@ -106,9 +110,10 @@ fn run_alive_nodes(records: &Record, alive_nodes: Vec<Node>) -> Vec<Arc<Particip
 
         alive_handlers.push(Arc::<Participant>::clone(&node));
 
+        let thread_num = Arc::<Mutex<u64>>::clone(thread_num);
         let list = records.node_record.clone();
         tokio::spawn(async move {
-            node.run(interval, timer_config(), list).await.unwrap();
+            node.run(interval, timer_config(), list, address, test_id, &thread_num).await.unwrap();
         });
     }
     alive_handlers
@@ -125,7 +130,8 @@ fn synchronize_height(
     let node_record = records.node_record.clone();
 
     tokio::spawn(async move {
-        thread::sleep(Duration::from_millis(interval));
+        // thread::sleep(Duration::from_millis(interval));
+        Delay::new(Duration::from_millis(interval)).await;
         let max_height = get_max_alive_height(&height_record, &alive_nodes);
         let height_record = height_record.lock().unwrap();
         height_record.iter().for_each(|(address, height)| {

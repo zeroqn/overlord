@@ -1,3 +1,4 @@
+use std::sync::{Arc, Mutex};
 use std::task::{Context, Poll};
 use std::time::Duration;
 use std::{future::Future, pin::Pin};
@@ -13,7 +14,7 @@ use crate::smr::smr_types::{SMREvent, SMRTrigger, TriggerSource, TriggerType};
 use crate::smr::{Event, SMRHandler};
 use crate::DurationConfig;
 use crate::{error::ConsensusError, ConsensusResult, INIT_HEIGHT, INIT_ROUND};
-use crate::{types::Hash, utils::timer_config::TimerConfig};
+use crate::{types::Hash, types::Address, utils::timer_config::TimerConfig};
 
 const MAX_TIMEOUT_COEF: u32 = 5;
 
@@ -28,6 +29,9 @@ pub struct Timer {
     state_machine: SMRHandler,
     height:        u64,
     round:         u64,
+    address:       Address,
+    thread_num:    Arc<Mutex<u64>>,
+    test_id:       u64,
 }
 
 ///
@@ -88,6 +92,9 @@ impl Timer {
         state_machine: SMRHandler,
         interval: u64,
         config: Option<DurationConfig>,
+        address: Address,
+        thread_num: &Arc<Mutex<u64>>,
+        test_id: u64,
     ) -> Self {
         let (tx, rx) = unbounded();
         let mut timer_config = TimerConfig::new(interval);
@@ -103,13 +110,28 @@ impl Timer {
             notify: rx,
             event,
             state_machine,
+            address,
+            thread_num: Arc::<Mutex<u64>>::clone(thread_num),
+            test_id,
         }
     }
 
     pub fn run(mut self) {
+        let thread_num = Arc::<Mutex<u64>>::clone(&self.thread_num);
+        let address = self.address.clone();
+        let test_id = self.test_id;
+
         tokio::spawn(async move {
+            {
+                *thread_num.lock().unwrap() += 1;
+                println!("####### thread num: {:?}, {:?} start timer in Cycle {:?}", thread_num, hex::encode(&address), test_id);
+            }
             while let Some(err) = self.next().await {
                 error!("Overlord: timer error {:?}", err);
+            }
+            {
+                *thread_num.lock().unwrap() -= 1;
+                println!("####### thread num: {:?}, {:?} stop timer in Cycle {:?}", thread_num, hex::encode(&address), test_id);
             }
         });
     }
@@ -251,6 +273,10 @@ impl TimeoutInfo {
 
 #[cfg(test)]
 mod test {
+    use std::sync::{Arc, Mutex};
+
+    use bytes::Bytes;
+
     use futures::channel::mpsc::unbounded;
     use futures::stream::StreamExt;
 
@@ -266,6 +292,9 @@ mod test {
             SMRHandler::new(trigger_tx),
             3000,
             None,
+            Bytes::new(),
+            &Arc::new(Mutex::new(0)),
+            0
         );
         event_tx.unbounded_send(input).unwrap();
 
@@ -346,6 +375,9 @@ mod test {
             SMRHandler::new(trigger_tx),
             3000,
             None,
+            Bytes::new(),
+            &Arc::new(Mutex::new(0)),
+            0
         );
 
         let new_round_event = SMREvent::NewRoundInfo {
