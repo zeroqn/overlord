@@ -864,7 +864,7 @@ where
 
         let proof = Proof {
             height,
-            round: self.round,
+            round: qc.round,
             block_hash: hash.clone(),
             signature: qc.signature.clone(),
         };
