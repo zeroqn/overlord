@@ -429,9 +429,9 @@ impl Votes {
             // the addr somehow has already inserted a Vote we ignore the incoming SignedVote no
             // matter it duplicates or differs(byzantine), reject the current request!
             let exist = self.by_address.get(&addr).unwrap().clone();
-            if !vote.signature.eq(&exist.signature) {
+            if !vote.vote.block_hash.eq(&exist.vote.block_hash) {
                 // this is a byzantine behaviour
-                log::warn!("Overlord: VoteCollector detects byzantine behaviour: signed vote existing: {}, signed vote inserting: {}",
+                log::error!("Overlord: VoteCollector detects byzantine behaviour: existing: {}, signed vote inserting: {}",
                 exist,vote);
             }
             return;
